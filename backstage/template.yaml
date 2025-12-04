@@ -1,0 +1,207 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: backstage-terraform-provisioning
+  title: Terraform Azure Infrastructure Provisioning
+  description: | 
+    Self-service template for provisioning Azure Infrastructure using Terraform. 
+  tags:
+    - azure
+    - terraform
+    - infrastructure
+spec:
+  owner: sre-team
+  type: infrastructure
+
+  parameters:
+    - title: Project Information
+      required:
+        - project_name
+      properties:
+        project_name:
+          title: Project Name
+          type: string
+          description: Unique identifier for your project (lowercase, alphanumeric, max 15 chars)
+          pattern: '^[a-z0-9]{3,15}$'
+          ui:autofocus: true
+          ui:help: 'This will be used as a prefix for resource names.'
+    - title: Inputs
+      properties:
+        resource_group_name:
+          type: string
+          title: Resource Group Name
+          default: "sre-challenge-flaschenpost"
+          description: "Azure Resource Group name"
+        location:
+          type: string
+          title: Azure Region
+          default: "westeurope"
+          description: "Azure region where resources will be deployed"
+          enum:
+            - westeurope
+            - northeurope
+        storage_account_name:
+          type: string
+          title: Storage Account Name
+          default: "srechallengeflaschenpost"
+          description: "Storage account name (lowercase, 3-24 chars)"
+        container_name:
+          type: string
+          title: Container Name
+          default: "sre"
+          description: List of storage containers to create
+          ui:options:
+            orderable: true
+            addable: true
+            removable: true
+        account_storage_tier:
+          type: string
+          title: Storage Account Tier
+          description: Performance tier for the storage account
+          default: "Standard"
+          enum:
+            - Standard
+            - Premium
+          enumNames:
+            - 'Standard (General-purpose, cost-effective)'
+            - 'Premium (High-performance, SSD-backed)'
+        account_replication_type:
+          type: string
+          title: Replication Type
+          description: Data redundancy strategy
+          default: LRS
+          enum:
+            - LRS
+            - GRS
+            - RAGRS
+            - ZRS
+          enumNames:
+            - 'LRS - Locally Redundant Storage (Lowest cost)'
+            - 'GRS - Geo-Redundant Storage'
+            - 'RAGRS - Read-Access Geo-Redundant Storage'
+            - 'ZRS - Zone-Redundant Storage'
+        access_tier:
+          type: string
+          title: Access Tier
+          default: "Hot"
+          description: Optimize costs based on data access patterns
+          enum:
+            - Hot
+            - Cool
+        container_access_type:
+          type: string
+          title: Container Access Type
+          default: "private"
+          description: Choose the type of container
+          enum: 
+            - private
+            - blob
+            - container
+        tags:
+          type: object
+          title: Tags
+          default:
+            department: "SRE"
+    - title: Advanced Options
+      properties:
+        additional_tags:
+          title: Additional Tags
+          type: object
+          description: Custom tags to apply to all resources
+          ui:field: KeyValuePairField
+          default: {}
+        enable_lifecycle_management:
+          title: Enable Lifecycle Management
+          type: boolean
+          description: Automatically manage blob lifecycle (e.g, move to cool tier after 30 days)
+          default: false
+        lifecycle_days_to_cool:
+          title: Days to Cool Tier
+          type: integer
+          description: Number of days before moving blobs to cool tier
+          default: 30
+          minimum: 1
+          maximum: 365
+          ui:widget: range
+          ui:options:
+            showValue: true
+
+  steps:
+    - id: generate-files
+      name: Fetch TF template from GitHub
+      action: fetch:template
+      input:
+        url: https://github.com/aschreuder/flaschenpost-sre-challenge/tree/main/terraform
+        copyWithoutRender:
+          - "*.tf"   # Ensures Terraform stays untouched
+        values:
+          project_name: ${{ parameters.project_name }}
+          resource_group_name: ${{ parameters.resource_group_name }}
+          region: ${{ parameters.region }}
+          storage_account_name: ${{ parameters.storage_account_name }}
+          container_name: ${{ parameters.container_name }}
+          account_storage_tier: ${{ parameters.account_storage_tier }}
+          account_replication_type: ${{ parameters.account_replication_type }}
+          access_tier: ${{ parameters.access_tier }}
+          container_access_type: ${{ parameters.container_access_type }}
+          tags: ${{ parameters.tags }}
+
+    - id: terraform-init-plan
+      name: Terraform init & plan
+      action: execute:shell
+      input:
+        workingDirectory: ./terraform
+        script: |
+          set -euo pipefail
+          echo "Running terraform init..."
+          terraform init -input=false
+          echo "Running terraform plan..."
+          terraform plan -input=false -out=plan.tfplan
+          echo "Show plan summary:"
+          terraform show -no-color plan.tfplan || true
+
+    - id: publish
+      name: Publish to GitHub Repository
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: Terraform configuration for ${{ parameters.project_name }} Azure Storage infrastructure
+        repoUrl: github.com?owner=your-org&repo={{ parameters.project_name }}-azure-storage
+        defaultBranch: main
+        repoVisibility: public
+        topics:
+          - azure
+          - terraform
+          - infrastructure
+
+    #- id: fetchDocs
+    #  name: Fetch Docs
+    #  action: fetch:plain
+    #  input:
+    #    targetPath: ./community
+    #    url: https://github.com/backstage/community/tree/main/backstage-community-sessions
+
+    #- id: register
+    #  name: Register
+    #  action: catalog:register
+    #  input:
+    #    repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+    #    catalogInfoPath: '/catalog-info.yaml'
+
+  # some outputs which are saved along with the job for use in the frontend
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+        icon: github
+    text:
+      - title: Terraform Configuration Generated
+        content: |
+          Your Terraform configuration has been generated and published!
+          
+          **Next Steps:**
+          1. Clone the repository: `git clone ${{ steps.publish.output.remoteUrl }}`
+          2. Review the generated Terraform files
+          3. Initialize Terraform: `terraform init`
+          4. Preview changes: `terraform plan`
+          5. Apply when ready: `terraform apply`
