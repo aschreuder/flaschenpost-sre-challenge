@@ -1,0 +1,29 @@
+deployment:
+  enabled: true
+  replicaCount: 3
+
+cronjob:
+  enabled: true
+  schedule: "*/30 * * * *"
+
+service:
+  type: ClusterIP
+
+ingress:
+  enabled: false
+
+hpa:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 50
+    memory: 128
+  limits:
+    cpu: 500
+    memory: 512
+
+config:
+  enabled: true
+  data:
+    APP_ENV: "dev"

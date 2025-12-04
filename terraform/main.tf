@@ -11,9 +11,9 @@ resource "azurerm_storage_account" "srechallengeflaschenpost" {
   name                     = "srechallengeflaschenpost"
   resource_group_name      = azurerm_resource_group.sre-challenge-flaschenpost.name
   location                 = var.resource_group_location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  access_tier              = "Hot"
+  account_tier             = var.account_tier
+  account_replication_type = var.account_replication_type
+  access_tier              = var.access_tier
   
   tags = {
     department = "SRE"
@@ -23,5 +23,5 @@ resource "azurerm_storage_account" "srechallengeflaschenpost" {
 resource "azurerm_storage_container" "sre" {
   name                  = "sre"
   storage_account_id    = azurerm_storage_account.srechallengeflaschenpost.id
-  container_access_type = "private"
+  container_access_type = var.container_access_type
 }

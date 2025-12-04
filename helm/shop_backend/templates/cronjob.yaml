@@ -1,0 +1,25 @@
+{{- if .Values.cronjob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "shop_backend.fullname" . | default .Release.Name }}-hello
+  labels:
+    app: {{ include "shop_backend.name" . | default "shop_backend" }}-cron
+spec:
+  schedule: "{{ .Values.cronjob.schedule }}"
+  successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: hello-sre
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - /bin/sh
+                - -c
+                - echo "Hello SRE"
+{{- end }}

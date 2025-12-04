@@ -1,0 +1,51 @@
+{{- if .Values.deployment.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "shop_backend.fullname" . | default .Release.Name}}
+  labels:
+    app: {{ include "shop_backend.name" . | default "shop_backend" }}
+spec:
+  replicas: {{ .Values.deployment.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "shop_backend.name" . | default "shop_backend" }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "shop_backend.name" . | default "shop_backend" }}
+        {{- with .Values.deployment.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.deployment.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      containers:
+        - name: shop_backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          envFrom:
+          {{- if .Values.config.enabled }}
+            - configMapRef:
+                name: {{ include "shop_backend.fullname" . | default .Release.Name }}-config
+          {{- end }}
+          {{- if .Values.secret.enabled }}
+            - secretRef:
+                name: {{ include "shop_backend.fullname" . | default .Release.Name }}-secret
+          {{- end }}
+          resources:
+            requests:
+              cpu: "{{ .Values.resources.requests.cpu }}m"
+              memory: "{{ .Values.resources.requests.memory }}Mi"
+            limits:
+              cpu: "{{ .Values.resources.limits.cpu }}m"
+              memory: "{{ .Values.resources.limits.memory }}Mi"
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+{{- end }}

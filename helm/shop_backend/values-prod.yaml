@@ -1,0 +1,41 @@
+deployment:
+  enabled: true
+  replicaCount: 5
+
+cronjob:
+  enabled: true
+  schedule: "*/30 * * * *"
+
+service:
+  type: LoadBalancer # external-facing
+
+ingress:
+  enabled: true
+  hosts:
+    - host: shop.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - shop.example.com
+      secretName: shop-tls
+
+hpa:
+  enabled: true
+  minReplicas: 5
+  maxReplicas: 15
+  targetCPUUtilizationPercentage: 70
+
+resources:
+  requests:
+    cpu: 200
+    memory: 512
+  limits:
+    cpu: 2000
+    memory: 2048
+
+config:
+  enabled: true
+  data:
+    APP_ENV: "prod"

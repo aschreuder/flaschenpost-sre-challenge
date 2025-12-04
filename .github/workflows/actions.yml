@@ -1,0 +1,84 @@
+name: Build and deploy shop_backend
+
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+
+        env: 
+            IMAGE_REPO: sreflaschenpost/shop_backend
+            CHART_PATH: helm/shop_backend
+            RELEASE_NAME: shop_backend
+            K8S_NAMESPACE: ${{ matrix.environment }}
+        
+        strategy:
+            matrix:
+                environment: [dev, stg, prod]
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Set up Docker
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log into container registry
+              run: | 
+                echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_URL }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+
+            - name: Build image
+              run: | 
+                IMAGE_TAG="${IMAGE_REPO}:${GITHUB_SHA}"
+                echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+                docker build -t "$IMAGE_TAG" .
+
+            - name: Push image
+              run: | 
+                docker push "$IMAGE_TAG"
+            
+            - name: Set up kubectl and Helm
+              run: |
+                curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.29.0/bin/linux/amd64/kubectl
+                chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+                curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+                echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+                export KUBECONFIG=$(pwd)/kubeconfig
+                echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+
+            - name: HELM lint and package
+              run: |
+               helm lint "$CHART_PATH"
+               helm package "$CHART_PATH" -d dist
+            
+            - name: Helm upgrade/install
+              id: deploy  
+              env:
+                KUBECONFIG: ${{ env.KUBECONFIG }}
+              run: |
+                VALUES_FILE="$CHART_PATH/values-${{ matrix.environment }}.yaml"
+                helm upgrade --install "$RELEASE_NAME-${{ matrix.environment }}" "$CHART_PATH" \
+                --namespace "$K8S_NAMESPACE" \
+                --create-namespace \
+                --set image.repository="$IMAGE_REPO" \
+                --set image.tag="${GITHUB_SHA}" \
+                -f "$VALUES_FILE"
+
+            - name: Verify deployment
+              env:
+                KUBECONFIG: ${{ env.KUBECONFIG }}
+              run: |
+                kubectl rollout status deployment/"$RELEASE_NAME-${{ matrix.environment }}-shop_backend" \
+                --namespace "$K8S_NAMESPACE" --timeout=120s
+                kubectl get pods -n "$K8S_NAMESPACE" -l app=shop_backend
+              
+            - name: Rollback on failure
+              if: failure()
+              env:
+                KUBECONFIG: ${{ env.KUBECONFIG }}
+              run: |
+                echo "Deployment failed, rolling back..."
+                helm rollback "$RELEASE_NAME-${{ matrix.environment }}" 1 || true

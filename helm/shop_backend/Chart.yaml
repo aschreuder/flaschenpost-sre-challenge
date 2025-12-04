@@ -1,0 +1,8 @@
+apiVersion: v2
+name: shop_backend
+description: Helm chart for shop backend application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+maintainers:
+  - name: sre-team

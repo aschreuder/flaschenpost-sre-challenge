@@ -1,0 +1,77 @@
+image:
+  repository: sreflaschenpost/shop_backend
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# Enable / Disable main deployment and CronJob
+deployment:
+  enabled: true
+  replicaCount: 3
+  podAnnotations: {}
+  podLabels: {}
+
+cronjob:
+  enabled: false
+  schedule: "*/30 * * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+
+# Service and Ingress
+service:
+  enabled: true
+  type: ClusterIP # internal
+  port: 80
+  targetPort: 80
+
+ingress:
+  enabled: false
+  className: ""
+  hosts:
+    - host: shop.example.com
+      paths:
+        - path: / 
+          pathType: Prefix
+  tls: []
+  annotations: {}
+
+# Configure resource limits with numeric values for validation
+resources:
+  requests:
+    cpu: 100
+    memory: 128
+  limits:
+    cpu: 500
+    memory: 512
+
+# HPA disabled by default but enabled for Prod
+hpa:
+  enabled: false
+  minReplicas: 5
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 75
+
+# ConfigMap and Secrets
+config:
+  enabled: true
+  data:
+    APP_ENV: "dev"
+
+secret:
+  enabled: false
+  data:
+    DATABASE_PASSWORD: "dummy"
+
+# Liveness and Readiness probes
+livenessProbe:
+  tcpSocket:
+    port: 80
+  initialDelaySeconds: 10
+  periodSeconds: 1
+  
+readinessProbe:
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: 10
+  periodSeconds: 1
+  failureThreshold: 2
